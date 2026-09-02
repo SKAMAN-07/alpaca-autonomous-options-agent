@@ -1,0 +1,41 @@
+# Environment variables & secrets (CRITICAL: Never commit API keys)
+.env
+.env.local
+*.env
+
+# Python virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Python compiled bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Diagnostic & exploration scratch files
+Rough/
+rough/
+
+# IDE, editor & OS metadata
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,21 @@
+# Core Alpaca Trading & Market Data SDK
+alpaca-py>=0.40.0
+
+# Alpaca Model Context Protocol (MCP) Server V2
+alpaca-mcp-server>=2.3.0
+
+# Serverless Open-Source Model Inference (Featherless AI)
+openai>=1.50.0
+
+# Data Validation, Schema Enforcement & Settings
+pydantic>=2.10.0
+pydantic-settings>=2.0.0
+
+# Environment Management
+python-dotenv>=1.0.0
+
+# Quantitative Math & Financial Volatility Calculations
+numpy>=2.0.0
+
+# HTTP & Network Utilities
+requests>=2.31.0
