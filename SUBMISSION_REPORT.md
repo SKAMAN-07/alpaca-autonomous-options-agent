@@ -1,54 +1,13 @@
-# Alpaca Options Alpha Agent — Multi-Agent Trading System
+# Alpaca AI Trading Hackathon — Submission Write-Up
+## Autonomous Multi-Agent Options Trading System (Variance Risk Premium Alpha)
 
-**Lablab.ai / Alpaca AI Trading Hackathon Submission**
-
-**Account Equity:** $100,000.00 USD  
-**Alpaca Paper Trading Account ID:** `d8459ab1-bc63-4799-8439-0a9e759fc255`  
+**Timestamp:** 2026-09-04 12:25:35 UTC  
+**Account Equity:** $100,000.00 USD (Alpaca Paper Trading Account: `d8459ab1-bc63-4799-8439-0a9e759fc255`)  
 **Options Trading Approval Level:** Level 3  
 
 ---
 
-## ⚡ Quick Start
-
-Follow these steps to replicate the environment and run the autonomous options trading system locally using `uv` (or standard `pip`):
-
-### 1. Clone & Setup Directory
-```bash
-cd "ALpaca test"
-```
-
-### 2. Configure Environment Variables
-Copy the `.env.example` template to `.env` and insert your credentials:
-```bash
-cp .env.example .env
-```
-Populate with:
-* `APCA_API_KEY_ID`: Your Alpaca Paper API Key ID
-* `APCA_API_SECRET_KEY`: Your Alpaca Paper Secret Key
-* `FEATHERLESS_API_KEY`: Your Featherless AI API Key (for serverless open-source model inference)
-
-### 3. Install Dependencies (Fast with `uv`)
-```bash
-# Using uv (recommended)
-uv venv .venv
-uv pip install -r requirements.txt
-
-# Or using standard pip
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### 4. Run the Autonomous Multi-Agent Trading System
-```bash
-python main.py
-```
-*The system will automatically verify Alpaca and Featherless connectivity, audit risk limits with the deterministic Compliance Shield, calculate Variance Risk Premium (VRP) signals, and place verified defined-risk options orders on your Alpaca paper account.*
-
----
-
-## 1. Executive Summary & AI Architecture
-
+### 1. Executive Summary & AI Architecture
 This system is an autonomous multi-agent quantitative options trading system built for the **Alpaca AI Trading Hackathon**. The architecture separates signal generation, risk governance, and order routing across three decoupled layers:
 
 1. **Primary Alpha Agent (`alpha_agent.py`)**: Continuously analyzes historical daily price bars and options surface data via Alpaca APIs. Computes the **Variance Risk Premium (VRP)** to identify volatility mispricings, while leveraging **Featherless AI** serverless open-source model inference (`Qwen/Qwen2.5-7B-Instruct`) to extract macroeconomic and volatility regime intelligence.
@@ -94,10 +53,9 @@ This system is an autonomous multi-agent quantitative options trading system bui
 
 ---
 
-## 2. Quantitative Strategy: The Variance Risk Premium (VRP)
-
+### 2. Quantitative Strategy: The Variance Risk Premium (VRP)
 The core quantitative edge is founded on the well-documented empirical anomaly known as the **Variance Risk Premium (VRP)**:
-$$\text{VRP} = \text{Implied Volatility} - \text{Realized Volatility}$$
+`VRP = Implied_Volatility - Realized_Volatility`
 
 * **Underpricing of Realized Volatility**: Option buyers consistently overpay for insurance against market crashes, resulting in implied volatility exceeding subsequent realized price fluctuations.
 * **Harvesting Protocol**: When VRP > 2.0%, the Alpha Agent crafts defined-risk **Bull Put Spreads** or **Bear Call Spreads** with the short strike targeted at approximately ~0.20 delta (providing an ~80% statistical probability of expiring out of the money) and a protective long wing placed $2 to $10 further out of the money.
@@ -105,27 +63,23 @@ $$\text{VRP} = \text{Implied Volatility} - \text{Realized Volatility}$$
 
 ---
 
-## 3. Deterministic Compliance Shield Audit Trail
-
+### 3. Deterministic Compliance Shield Audit Trail
 The Compliance Shield operates with **zero generative AI dependence** to prevent prompt injection or hallucinated parameters in the execution path. In production testing:
 * **Compliant Trades Approved**: All 8 gates evaluated to `PASS`.
-* **Deliberately Injected High-Risk Trades**: An unhedged naked call with $75,000 risk was instantly **VETOED** with detailed violation codes (`GATE_2_MAX_DEFINED_RISK`, `GATE_4_DEFINED_RISK_PROTECTION`, `GATE_5_DTE_SAFETY_WINDOW`).
+* **Deliberately Injected High-Risk Trades**: An unhedged naked call with $50,000 risk was instantly **VETOED** with detailed violation codes (`GATE_2_MAX_DEFINED_RISK`, `GATE_4_DEFINED_RISK_PROTECTION`).
 
 ---
 
-## 4. Verified Live Alpaca Paper Executions
-
+### 4. Verified Live Alpaca Paper Executions
 The following options orders were submitted to Alpaca's paper trading system:
 
 | Order ID | Underlying | Strategy | Status | Max Risk Committed | Net Credit | Executed Legs |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `663e60a9-495c-471b-b296-f5afabbc64a5` | QQQ | BULL_PUT_SPREAD | `OrderStatus.ACCEPTED` | $182.00 | $18.00 | SELL QQQ260918P00695000, BUY QQQ260918P00693000 |
-| `4f359501-145f-499f-b7d9-853d04353a21` | SPY | BEAR_CALL_SPREAD | `OrderStatus.ACCEPTED` | $167.00 | $33.00 | SELL SPY260910C00774000, BUY SPY260910C00776000 |
-| `f7e46109-f87e-4a29-bb37-1bdead6aec1a` | SPY | BEAR_CALL_SPREAD | `OrderStatus.ACCEPTED` | $167.00 | $33.00 | SELL SPY260910C00774000, BUY SPY260910C00776000 |
 
 ---
 
-## 5. Alpaca MCP Server (V2) & Tooling Infrastructure
+### 5. Alpaca MCP Server (V2) & Tooling Infrastructure
 * **Tooling Setup**: Initialized and run via `uvx alpaca-mcp-server` using FastMCP.
 * **Environment**: Powered by `uv` high-performance Python package management with CPython 3.12.
 * **Resilience**: Autonomous self-debugging loop handles off-hours limit order requirements, options contract expiration schedules, and IEX market data feeds seamlessly.

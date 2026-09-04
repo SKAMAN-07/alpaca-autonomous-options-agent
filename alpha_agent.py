@@ -122,15 +122,15 @@ class OptionsAlphaAgent:
     def fetch_target_option_chain(self, symbol: str, spot_price: float) -> list[dict]:
         """
         Fetches active options contracts within target DTE window [min_dte, max_dte]
-        and bounded around spot price [0.85*spot, 1.15*spot].
+        and bounded around spot price [0.93*spot, 1.07*spot].
         """
         print(f"  [2/5] Fetching option contracts for {symbol} around spot ${spot_price:.2f}...", flush=True)
         now = datetime.now().date()
         min_date = now + timedelta(days=config.min_dte)
         max_date = now + timedelta(days=config.max_dte)
 
-        min_strike = str(int(spot_price * 0.85))
-        max_strike = str(int(spot_price * 1.15))
+        min_strike = str(int(spot_price * 0.93))
+        max_strike = str(int(spot_price * 1.07))
 
         req = GetOptionContractsRequest(
             underlying_symbols=[symbol],
@@ -139,7 +139,7 @@ class OptionsAlphaAgent:
             expiration_date_lte=max_date,
             strike_price_gte=min_strike,
             strike_price_lte=max_strike,
-            limit=100
+            limit=500
         )
         contracts_resp = self.trading_client.get_option_contracts(req)
         contracts = contracts_resp.option_contracts
@@ -170,55 +170,66 @@ class OptionsAlphaAgent:
         if not contracts:
             raise ValueError(f"No option contracts found for {symbol} in DTE range {config.min_dte}-{config.max_dte}")
 
-        # Choose target expiration (closest to 25 DTE)
-        target_contracts = sorted(contracts, key=lambda x: abs(x["dte"] - 25))
-        chosen_dte = target_contracts[0]["dte"]
-        chosen_exp = target_contracts[0]["expiration"]
-        same_exp = [c for c in target_contracts if c["expiration"] == chosen_exp]
-        s_t = max(0.01, chosen_dte / 365.0)
+        # Group contracts by expiration
+        exp_map = {}
+        for c in contracts:
+            exp_map.setdefault(c["expiration"], []).append(c)
 
-        # Separate into calls and puts
-        calls = [c for c in same_exp if c["type"] == "call" and c["strike"] > spot]
-        puts = [c for c in same_exp if c["type"] == "put" and c["strike"] < spot]
+        # Sort expirations by proximity to ideal 25 DTE target
+        sorted_exps = sorted(exp_map.keys(), key=lambda exp: abs(exp_map[exp][0]["dte"] - 25))
 
-        # Function to find contract closest to target delta ~ 0.22
-        def select_delta_pair(candidates, opt_type):
+        # Function to find contract closest to target delta ~ 0.22 with protective long wing
+        def select_delta_pair(candidates, opt_type, exp_dte):
+            if len(candidates) < 2:
+                return None, None
+            s_t = max(0.01, exp_dte / 365.0)
             scored = []
             for c in candidates:
                 approx_iv = max(0.12, rv * 1.15)
                 d = abs(black_scholes_delta(spot, c["strike"], s_t, 0.045, approx_iv, option_type=opt_type))
-                scored.append((abs(d - 0.22), d, c))
+                # Add penalty if outside target compliance delta band [0.15, 0.30]
+                penalty = 0.0 if (0.15 <= d <= 0.30) else 5.0
+                scored.append((penalty + abs(d - 0.22), d, c))
             scored.sort(key=lambda x: x[0])
-            short_match = scored[0][2]
-            # Long protective wing: strike further OTM
-            if opt_type == "call":
-                long_candidates = [c for c in candidates if c["strike"] > short_match["strike"]]
-                long_candidates.sort(key=lambda x: x["strike"])
-            else:
-                long_candidates = [c for c in candidates if c["strike"] < short_match["strike"]]
-                long_candidates.sort(key=lambda x: x["strike"], reverse=True)
-            
-            if not long_candidates:
-                return None, None
-            long_match = long_candidates[min(1, len(long_candidates)-1)]
-            return short_match, long_match
 
-        if len(puts) >= 2:
-            s_cand, l_cand = select_delta_pair(puts, "put")
-            if s_cand and l_cand:
-                short_c, long_c = s_cand, l_cand
-                opt_type = "put"
-                strategy_name = "BULL_PUT_SPREAD"
-            else:
-                s_cand, l_cand = select_delta_pair(calls, "call")
-                short_c, long_c = s_cand, l_cand
-                opt_type = "call"
-                strategy_name = "BEAR_CALL_SPREAD"
-        else:
-            s_cand, l_cand = select_delta_pair(calls, "call")
-            short_c, long_c = s_cand, l_cand
-            opt_type = "call"
-            strategy_name = "BEAR_CALL_SPREAD"
+            # Find matching candidate that has a valid protective wing
+            for _, d_val, short_match in scored:
+                if opt_type == "call":
+                    long_candidates = [c for c in candidates if c["strike"] > short_match["strike"]]
+                    long_candidates.sort(key=lambda x: x["strike"])
+                else:
+                    long_candidates = [c for c in candidates if c["strike"] < short_match["strike"]]
+                    long_candidates.sort(key=lambda x: x["strike"], reverse=True)
+                
+                if long_candidates:
+                    # Pick wing (1 to 2 strikes further OTM)
+                    long_match = long_candidates[min(1, len(long_candidates) - 1)]
+                    return short_match, long_match
+            return None, None
+
+        selected_plan = None
+        for exp in sorted_exps:
+            c_list = exp_map[exp]
+            exp_dte = c_list[0]["dte"]
+            calls = [c for c in c_list if c["type"] == "call" and c["strike"] > spot]
+            puts = [c for c in c_list if c["type"] == "put" and c["strike"] < spot]
+
+            # Evaluate Bull Put Spreads
+            s_put, l_put = select_delta_pair(puts, "put", exp_dte)
+            if s_put and l_put:
+                selected_plan = (s_put, l_put, "put", "BULL_PUT_SPREAD", exp_dte, exp)
+                break
+
+            # Evaluate Bear Call Spreads
+            s_call, l_call = select_delta_pair(calls, "call", exp_dte)
+            if s_call and l_call:
+                selected_plan = (s_call, l_call, "call", "BEAR_CALL_SPREAD", exp_dte, exp)
+                break
+
+        if not selected_plan:
+            raise RuntimeError(f"Could not construct defined-risk spread pair for {symbol} within DTE {config.min_dte}-{config.max_dte}")
+
+        short_c, long_c, opt_type, strategy_name, chosen_dte, chosen_exp = selected_plan
 
         # Fetch quotes for both legs
         print(f"  [3/5] Fetching indicative quotes for {short_c['symbol']} and {long_c['symbol']}...", flush=True)

@@ -204,7 +204,7 @@ def main():
     system.phase_2_demonstrate_risk_veto()
     system.phase_3_run_and_execute(symbols=["SPY", "QQQ"])
     
-    output_report = str(Path(__file__).parent / "README.md")
+    output_report = str(Path(__file__).parent / "SUBMISSION_REPORT.md")
     system.generate_hackathon_writeup(env_info, output_report)
     print("\n" + "=" * 70, flush=True)
     print("  ALL HACKATHON PHASES COMPLETED SUCCESSFULLY!", flush=True)
